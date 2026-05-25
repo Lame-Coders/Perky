@@ -20,7 +20,7 @@ const program = new Command();
 program
   .name('kaks')
   .description('AI-powered developer assistant and workspace launcher')
-  .version('1.0.0')
+  .version('0.0.1')
   .showHelpAfterError()
   .showSuggestionAfterError()
   .addHelpText('after', `

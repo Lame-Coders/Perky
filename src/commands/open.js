@@ -1,13 +1,9 @@
 import {
-  getProjectOpenUrls,
   handleCommandError,
-  launchEditor,
-  launchExplorer,
   loadGlobalConfig,
-  normalizeUrl,
-  openTarget,
-  resolveProject,
 } from './shared.js';
+import { openWorkspace } from '../workspace/opener.js';
+import { resolveProject } from '../workspace/resolver.js';
 
 export function registerOpenCommand(program) {
   program
@@ -38,23 +34,9 @@ export async function openProject(projectName, options = {}) {
 
   console.log(`Opening project: ${name}`);
 
-  if (options.editor !== false) {
-    await launchEditor(project.editor, project.path);
-    console.log(`OK Editor       -> ${project.path}`);
-  }
-
-  if (options.browser !== false) {
-    const urls = getProjectOpenUrls(project);
-    for (const url of urls) {
-      const normalizedUrl = normalizeUrl(url);
-      await openTarget(normalizedUrl, project.browserCommand);
-      console.log(`OK Browser      -> ${normalizedUrl}`);
-    }
-  }
-
-  if (options.explorer !== false) {
-    await launchExplorer(project.path);
-    console.log(`OK File Explorer -> ${project.path}`);
+  const results = await openWorkspace(project, options);
+  for (const result of results) {
+    console.log(`OK ${result.label.padEnd(13)} -> ${result.target}`);
   }
 
   console.log(`\nProject "${name}" is ready.`);

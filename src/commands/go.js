@@ -1,10 +1,8 @@
 import {
-  assertValidUrl,
   copyToClipboard,
   handleCommandError,
-  normalizeUrl,
-  openTarget,
 } from './shared.js';
+import { assertValidUrl, normalizeUrl, openTarget } from '../workspace/browser.js';
 
 export function registerGoCommand(program) {
   program
@@ -17,7 +15,7 @@ export function registerGoCommand(program) {
 
 Examples:
   $ kaks go github.com
-  $ kaks go github.com/kaksKhasru/kaks
+  $ kaks go github.com/ArushKhasru/kaks
   $ kaks go localhost:3000
   $ kaks go docs.google.com --copy
 `)

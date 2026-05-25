@@ -1,6 +1,6 @@
 {
-  "name": "kaks",
-  "version": "1.0.0",
+  "name": "@theonlykaks/kaks",
+  "version": "0.0.1",
   "description": "Hello_to_the_cli",
   "keywords": [],
   "homepage": "https://github.com/ArushKhasru/kaks#readme",
@@ -16,7 +16,7 @@
   "type": "module",
   "main": "index.js",
   "bin": {
-    "kaks": "./cli.js"
+    "kaks": "cli.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -9,7 +10,6 @@ import {
   deleteByPath,
   getByPath,
   handleCommandError,
-  launchEditor,
   loadGlobalConfig,
   parseConfigValue,
   resolveUserPath,
@@ -17,6 +17,7 @@ import {
   setByPath,
   validateConfigValue,
 } from './shared.js';
+import { launchEditor } from '../workspace/opener.js';
 
 export function registerConfigCommand(program) {
   const configCommand = program
@@ -62,6 +63,9 @@ export function registerConfigCommand(program) {
     .option('--path <path>', 'Project root path')
     .option('--browser <url>', 'Default URL to open for this project')
     .option('--editor <editor>', 'Editor command for this project')
+    .option('--start <cmd>', 'Project-level start command, e.g. "npm run dev"')
+    .option('--service <spec>', 'Add a service as "name=cmd" or "name@cwd=cmd"', collectOption, [])
+    .option('--yes', 'Overwrite an existing project without confirmation')
     .action(async (name, options) => {
       try {
         await addProject(name, options);
@@ -122,18 +126,46 @@ export async function listConfig() {
 
 export async function addProject(name, options = {}) {
   const config = await loadGlobalConfig();
+
+  if (config.projects?.[name] && !options.yes) {
+    const { overwrite } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'overwrite',
+        message: `Project "${name}" already exists. Replace it?`,
+        default: false,
+      },
+    ]);
+
+    if (!overwrite) {
+      console.log('Canceled.');
+      return;
+    }
+  }
+
   const answers = await promptForMissingProjectFields(name, options);
   const projectPath = resolveUserPath(answers.path);
+  await assertDirectoryExists(projectPath);
 
-  config.projects ??= {};
-  config.projects[name] = {
+  const services = parseServices(answers.services, projectPath);
+  await assertServiceDirectoriesExist(services, projectPath);
+  const project = {
     path: projectPath,
     browser: answers.browser || undefined,
     editor: answers.editor || undefined,
+    startCmd: answers.start || undefined,
+    services: services.length ? services : undefined,
   };
+
+  config.projects ??= {};
+  config.projects[name] = removeUndefined(project);
 
   await saveGlobalConfig(config);
   console.log(`Added project "${name}" -> ${projectPath}`);
+
+  if (!project.startCmd && !services.length) {
+    console.log(`No start command was saved. Add one later with "kaks config set projects.${name}.startCmd <cmd>".`);
+  }
 }
 
 export async function removeProject(name, options = {}) {
@@ -203,11 +235,115 @@ async function promptForMissingProjectFields(name, options) {
     });
   }
 
+  if (!options.start && !options.service?.length) {
+    questions.push({
+      type: 'input',
+      name: 'start',
+      message: 'Project start command',
+      default: '',
+    });
+    questions.push({
+      type: 'confirm',
+      name: 'addServices',
+      message: 'Add separate services for kaks start?',
+      default: false,
+    });
+    questions.push({
+      type: 'input',
+      name: 'services',
+      message: 'Services',
+      default: '',
+      when: (answers) => answers.addServices,
+      filter: normalizeServiceSpecs,
+      validate: (value) => validateServiceSpecs(normalizeServiceSpecs(value)),
+    });
+  }
+
   const answers = questions.length ? await inquirer.prompt(questions) : {};
 
   return {
     path: options.path ?? answers.path,
     browser: options.browser ?? answers.browser,
     editor: options.editor ?? answers.editor,
+    start: options.start ?? answers.start,
+    services: options.service ?? answers.services ?? [],
   };
+}
+
+async function assertDirectoryExists(projectPath) {
+  let stat;
+  try {
+    stat = await fs.stat(projectPath);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      throw new CliError(`Project path does not exist: ${projectPath}`, { cause: error });
+    }
+    throw error;
+  }
+
+  if (!stat.isDirectory()) {
+    throw new CliError(`Project path is not a directory: ${projectPath}`);
+  }
+}
+
+async function assertServiceDirectoriesExist(services, projectPath) {
+  for (const service of services) {
+    if (service.cwd) {
+      await assertDirectoryExists(resolveUserPath(service.cwd, projectPath));
+    }
+  }
+}
+
+function collectOption(value, previous) {
+  return [...previous, value];
+}
+
+function parseServices(serviceSpecs, projectPath) {
+  return normalizeServiceSpecs(serviceSpecs).map((spec) => parseServiceSpec(spec, projectPath));
+}
+
+function parseServiceSpec(spec, projectPath) {
+  const separatorIndex = spec.indexOf('=');
+  if (separatorIndex === -1) {
+    throw new CliError(`Invalid service "${spec}". Use "name=cmd" or "name@cwd=cmd".`);
+  }
+
+  const left = spec.slice(0, separatorIndex).trim();
+  const cmd = spec.slice(separatorIndex + 1).trim();
+  const [rawName, rawCwd] = left.split('@');
+  const name = rawName?.trim();
+  const cwd = rawCwd?.trim();
+
+  if (!name || !cmd) {
+    throw new CliError(`Invalid service "${spec}". Use "name=cmd" or "name@cwd=cmd".`);
+  }
+
+  return removeUndefined({
+    name,
+    cmd,
+    cwd: cwd ? path.relative(projectPath, resolveUserPath(cwd, projectPath)) || '.' : undefined,
+  });
+}
+
+function validateServiceSpecs(serviceSpecs) {
+  try {
+    for (const spec of serviceSpecs) {
+      parseServiceSpec(spec, process.cwd());
+    }
+    return true;
+  } catch (error) {
+    return error.message;
+  }
+}
+
+function normalizeServiceSpecs(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  return String(value ?? '').split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+function removeUndefined(value) {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
 }
