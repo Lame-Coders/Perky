@@ -1,6 +1,6 @@
 # perky_CLI
 
-AI-powered developer assistant and workspace launcher for Windows-first workflows.
+I am just a Workspace-launcher with  AI-Assistant for Windows-first workflows.
 
 **Status:** Work in progress. Core commands are implemented and usable.
 
