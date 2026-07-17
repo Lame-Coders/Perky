@@ -1,6 +1,6 @@
 # perky — CLI Workspace Launcher & AI Assistant
 
-perky is a Windows-first CLI that combines workspace automation and AI assistance for developers. It lets you name projects, start services, open tools, and ask or explain code using AI providers (Gemini, OpenAI, Ollama).
+perky is a CLI that combines workspace automation and AI assistance for developers. It lets you name projects, start services, open tools, and ask or explain code using AI providers (Gemini, OpenAI, Ollama).
 
 Status: Active development — core commands implemented and tested.
 
